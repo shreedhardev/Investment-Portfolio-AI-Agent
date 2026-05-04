@@ -48,6 +48,7 @@ from invest_portfolio_risk_react_ai_agent import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+@st.cache_data
 def load_stock_data(): 
     """
     Load stock data from the JSON file.
@@ -69,10 +70,10 @@ def load_stock_data():
             stock_data = json.load(file)
             return stock_data['stocks']
     except FileNotFoundError:
-        st.error(f"Stock data file not found at {file_path}")
+        st.error(f"Stock data file not found at {json_path}")
         return {}
     except json.JSONDecodeError:
-        st.error(f"Error decoding JSON from {file_path}")
+        st.error(f"Error decoding JSON from {json_path}")
         return {}
 
         
@@ -139,20 +140,14 @@ def capture_output(max_iterations: int, system_prompt: str, query: str, api_key:
     import io
     import sys
 
-    # Create a string buffer to capture output
-    output_buffer = io.StringIO()
-    original_stdout = sys.stdout
-    sys.stdout = output_buffer
-
     try:
         # Set the Groq API key in environment
         os.environ['GROQ_API_KEY'] = api_key
 
-        # Call agent_loop
-        agent_loop(max_iterations, system_prompt, query)
-
-        # Get the captured output
-        full_output = output_buffer.getvalue()
+        full_output = ""
+        # Consume the agent_loop generator
+        for chunk in agent_loop(max_iterations, system_prompt, query):
+            full_output += chunk
 
         # Extract the Answer section
         answer_match = re.search(r'(?:\*\*Answer\*\*|Answer):(.*)', full_output, re.DOTALL | re.IGNORECASE)
@@ -172,9 +167,6 @@ def capture_output(max_iterations: int, system_prompt: str, query: str, api_key:
             'full_output': f"Error: {str(e)}",
             'final_answer': f"Error processing query: {str(e)}"
         }
-    finally:
-        # Restore stdout
-        sys.stdout = original_stdout
 
 def main():
     """

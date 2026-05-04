@@ -173,13 +173,18 @@ class FinancialTools:
             float: Expected annual return percentage
         """
         total_return = 0
+        total_allocation = sum(portfolio.values())
+        if total_allocation == 0:
+            return 0.0
+            
         for stock, allocation in portfolio.items():
             stock_info = self.loaded_stock_data.get(stock, {})
             if stock_info:
                 avg_return = stock_info.avg_annual_return
             else:
                 avg_return = 0
-            total_return += avg_return * (allocation/ 100)
+            weight = allocation / total_allocation
+            total_return += avg_return * weight
         return total_return * 100
 
     def recommend_portfolio_adjustments(self, portfolio: Dict[str, float], risk_tolerance: str) -> List[str]:
@@ -268,7 +273,7 @@ class FinancialTools:
         """
         stock_data = self.loaded_stock_data.get(stock_symbol, {})
         if not stock_data:
-            similar_stocks = [symbol for symbol in self.loaded_stock_data.keys() if stock_data.lower in symbol.lower]
+            similar_stocks = [symbol for symbol in self.loaded_stock_data.keys() if stock_symbol.lower() in symbol.lower()]
             return {
                 "Error": f"Stock symbol {stock_symbol} not found in dataset.",
                 "Suggestions": similar_stocks[:3] if similar_stocks else "No similar stocks found."
@@ -358,9 +363,10 @@ class Agent:
             str: Generated response from the language model
         """
         try:
+            model_name = os.getenv("GROQ_MODEL", "llama3-70b-8192")
             completion = self.client.chat.completions.create(
                 messages=self.messages,
-                model="llama3-70b-8192",
+                model=model_name,
             )
             result = completion.choices[0].message.content
             self.messages.append({"role": "assistant", "content": result})
@@ -415,26 +421,38 @@ def execute_tool_action(chosen_tool, args_str, financial_tools):
 
         # Tool: recommend_portfolio_adjustments
         elif chosen_tool == "recommend_portfolio_adjustments":
-            # Expect args_str in the format: '{"AAPL": 50, "GOOGL": 30, "SPY": 20}, low'
-            # Split portfolio and risk tolerance
-            portfolio_str, risk_tolerance = [arg.strip() for arg in args_str.split(',')]
-            # Convert single quotes to double quotes
-            # Parse portfolio JSON
-            portfolio = json.loads(portfolio_str.replace("'", '"'))
+            # Use rsplit to safely split by last comma to avoid splitting JSON values
+            parts = args_str.rsplit(',', 1)
+            if len(parts) == 2:
+                portfolio_str, risk_tolerance = [arg.strip() for arg in parts]
+            else:
+                return "Error: arguments for recommend_portfolio_adjustments must contain portfolio JSON and risk tolerance separated by a comma."
+            
+            import ast
+            try:
+                portfolio = ast.literal_eval(portfolio_str)
+            except (ValueError, SyntaxError):
+                portfolio = json.loads(portfolio_str.replace("'", '"'))
             result_tool = financial_tools.recommend_portfolio_adjustments(portfolio, risk_tolerance)
             return "\n".join(result_tool)
 
         # Tool: analyze_portfolio_diversification
         elif chosen_tool == "analyze_portfolio_diversification":
-            # Expect args_str in JSON format: '{"AAPL": 40, "GOOGL": 30, "SPY": 30}'
-            portfolio = json.loads(args_str.replace("'", '"'))  # Convert single quotes to double quotes
+            import ast
+            try:
+                portfolio = ast.literal_eval(args_str.strip())
+            except (ValueError, SyntaxError):
+                portfolio = json.loads(args_str.replace("'", '"'))
             result_tool = financial_tools.analyze_portfolio_diversification(portfolio)
             return json.dumps(result_tool, indent=2)
 
         # Tool: calculate_expected_portfolio_return
         elif chosen_tool == "calculate_expected_portfolio_return":
-            # Expect args_str in JSON format: '{"AAPL": 50, "GOOGL": 30, "SPY": 20}'
-            portfolio = json.loads(args_str.replace("'", '"'))  # Convert single quotes to double quotes
+            import ast
+            try:
+                portfolio = ast.literal_eval(args_str.strip())
+            except (ValueError, SyntaxError):
+                portfolio = json.loads(args_str.replace("'", '"'))
             result_tool = financial_tools.calculate_expected_portfolio_return(portfolio)
             return f"Expected Portfolio Return: {result_tool:.2f}%"
 
@@ -476,9 +494,7 @@ def agent_loop(max_iterations, system_prompt, query):
     next_prompt = query
     for iteration in range(max_iterations):
         result = agent(next_prompt)
-        print(f"\n{'='*50}")
-        print(f"Iteration {iteration + 1}:")
-        print(result)
+        yield f"\n{'='*50}\nIteration {iteration + 1}:\n{result}\n"
 
         # Check if the response contains 'Answer' and break the loop
         if "Answer" in result:
@@ -491,7 +507,7 @@ def agent_loop(max_iterations, system_prompt, query):
                 chosen_tool, args_str = action_match.groups()
                 observation = execute_tool_action(chosen_tool, args_str, financial_tools)
                 next_prompt = f"Observation: {observation}"             
-                print(next_prompt)
+                yield f"{next_prompt}\n"
                 continue
 
 def main():
@@ -499,7 +515,8 @@ def main():
     Main execution function demonstrating investment analysis capabilities.
     """
     system_prompt = load_system_prompt('system_prompt_v1.txt')
-    agent_loop(max_iterations=5, system_prompt=system_prompt, query="I want to analyze a portfolio with 40% AAPL, 30% GOOGL, 30% SPY")
+    for output in agent_loop(max_iterations=5, system_prompt=system_prompt, query="I want to analyze a portfolio with 40% AAPL, 30% GOOGL, 30% SPY"):
+        print(output, end="")
 
 if __name__ == "__main__":
     main()
