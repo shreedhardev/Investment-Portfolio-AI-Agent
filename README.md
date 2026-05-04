@@ -123,13 +123,9 @@ Distributed under the MIT License. See `LICENSE` file for more information.
 - Groq for providing the API used in this project.
 - Streamlit for the excellent web app framework.
 - Contributors and maintainers of the open-source libraries used in this project.
-
-## 👋 Connect with Me
-Feel free to reach out for collaboration, questions, or potential opportunities! I'm always excited to discuss 
-- 🧠 Intelligent AI Agents
-- 📊 Risk Analysis & Financial Technology
-- 🤖 Machine Learning Solutions
-- 🚀 AI-Driven Decision Support Systems
+- Shivnar for initial project idea
 
 
-[<img src="https://github.com/shiv-rna/Airflow-Basics/blob/e4ea0578dc2f664532a17755fe21534a9bd33e51/docs/linkedin.png" alt="Linkedin" width="50"/>](https://www.linkedin.com/in/sr099/) [<img src="https://github.com/shiv-rna/Airflow-Basics/blob/e4ea0578dc2f664532a17755fe21534a9bd33e51/docs/twitterx.png" alt="TwitterX" width="50"/>](https://twitter.com/wtfisshivang)
+
+
+
